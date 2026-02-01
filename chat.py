@@ -31,12 +31,12 @@ class OpenAIMessage:
 class OpenAIChat:
     def __init__(self, client: OpenAI):
         self.client: OpenAI = client
-        self.converstation: list[OpenAIMessage] = []
+        self.conversation: list[OpenAIMessage] = []
         self.model: OpenAIModel | None = None
 
     def new(self, model: OpenAIModel):
         print(f"OpenAIChat.new: model={model}")
-        self.converstation = []
+        self.conversation = []
         self.model = model
 
     def say(self, thing: str):
@@ -44,16 +44,16 @@ class OpenAIChat:
         if self.model is None:
             raise RuntimeWarning("must define a model")
         user_message = OpenAIMessage(role="user", content=thing)
-        self.converstation.append(user_message)
-        resp = self.client.chat.completions.create(model=self.model, messages=[m.to_dict() for m in self.converstation])
+        self.conversation.append(user_message)
+        resp = self.client.chat.completions.create(model=self.model, messages=[m.to_dict() for m in self.conversation])
         resp_text = resp.choices[0].message.content
         chat_message = OpenAIMessage(role="assistant", content=resp_text)
-        self.converstation.append(chat_message)
+        self.conversation.append(chat_message)
         return resp_text
 
     def end(self):
         with open(f"{ts()}.chat.log", "w") as f:
-            f.write("\n\n".join([m.to_text() for m in self.converstation]))
+            f.write("\n\n".join([m.to_text() for m in self.conversation]))
         print("OpenAIChat.end")
 
 
