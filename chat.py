@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 END_WORD = "end"
 
 
-class OpenAIModel:
+class OpenAIModel(StrEnum):
     gpt_4o_mini = "gpt-4o-mini"
 
 
