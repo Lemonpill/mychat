@@ -4,11 +4,14 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 
-END_WORD = "end"
-
-
 class OpenAIModel(StrEnum):
     gpt_4o_mini = "gpt-4o-mini"
+
+
+class OpenAIRole(StrEnum):
+    user = "user"
+    assistant = "assistant"
+    system = "system"
 
 
 def ts():
@@ -16,58 +19,67 @@ def ts():
 
 
 class OpenAIMessage:
-    def __init__(self, role: str, content: str):
+    def __init__(self, role: OpenAIRole, content: str | None = None):
         self.role = role
         self.content = content
         self.time = ts()
 
-    def to_dict(self):
+    def to_chat(self) -> dict:
         return {"role": self.role, "content": self.content}
 
-    def to_text(self):
+    def to_text(self) -> str:
         return f"[{self.time}] {self.role}:\n{self.content}"
 
 
 class OpenAIChat:
     def __init__(self, client: OpenAI):
         self.client: OpenAI = client
-        self.conversation: list[OpenAIMessage] = []
+        self.history: list[OpenAIMessage] = []
         self.model: OpenAIModel | None = None
 
-    def new(self, model: OpenAIModel):
-        print(f"OpenAIChat.new: model={model}")
-        self.conversation = []
+    def start(self, model: OpenAIModel):
+        self.history = []
         self.model = model
 
-    def say(self, thing: str):
-        print(f"OpenAIChat.say: thing={thing}")
-        if self.model is None:
-            raise RuntimeWarning("must define a model")
-        user_message = OpenAIMessage(role="user", content=thing)
-        self.conversation.append(user_message)
-        resp = self.client.chat.completions.create(model=self.model, messages=[m.to_dict() for m in self.conversation])
-        resp_text = resp.choices[0].message.content
-        chat_message = OpenAIMessage(role="assistant", content=resp_text)
-        self.conversation.append(chat_message)
-        return resp_text
+    def push(self, message: OpenAIMessage):
+        self.history.append(message)
 
-    def end(self):
+    def send(self, message: OpenAIMessage):
+        if self.model is None:
+            raise RuntimeError("must define a model")
+        self.history.append(message)
+        resp = self.client.chat.completions.create(model=self.model, messages=[m.to_chat() for m in self.history])
+        resp_text = resp.choices[0].message.content
+        chat_message = OpenAIMessage(role=OpenAIRole.assistant, content=resp_text)
+        self.history.append(chat_message)
+        return chat_message
+
+    def end(self, dump: bool = False):
+        if not dump:
+            return
         with open(f"{ts()}.chat.log", "w") as f:
-            f.write("\n\n".join([m.to_text() for m in self.conversation]))
-        print("OpenAIChat.end")
+            f.write("\n\n".join([m.to_text() for m in self.history]))
 
 
 def main():
     load_dotenv()
+    dump_on_end = True
     chat = OpenAIChat(OpenAI())
-    chat.new(model=OpenAIModel.gpt_4o_mini)
+    chat.start(model=OpenAIModel.gpt_4o_mini)
+    system_input = input("system message:\n")
+    if system_input:
+        chat.push(OpenAIMessage(role=OpenAIRole.system, content=system_input))
+    print("\n\n")
     while True:
-        thing = input("user said:\n")
-        if thing == END_WORD:
-            chat.end()
+        user_input = input("user message:\n")
+        print("\n\n")
+        if user_input:
+            user_message = OpenAIMessage(role=OpenAIRole.user, content=user_input)
+            chat_message = chat.send(user_message)
+            print(f"assistant message:\n{chat_message.content}\n\n")
+        else:
+            chat.end(dump=dump_on_end)
             break
-        compl = chat.say(thing)
-        print(f"chat said:\n{compl}")
 
 
 if __name__ == "__main__":
