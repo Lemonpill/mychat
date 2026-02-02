@@ -1,4 +1,6 @@
+import json
 from enum import IntEnum
+from openai import OpenAI
 
 
 class TileType(IntEnum):
@@ -7,7 +9,7 @@ class TileType(IntEnum):
     O = 2  # circle
 
 
-BOARD_SIZE = 4
+BOARD_SIZE = 3
 TILE_ICONS = {
     TileType.V: "□",
     TileType.X: "⧆",
@@ -111,7 +113,7 @@ class GameEngine:
                     vacant_tiles += 1
         # check it?
         if vacant_tiles <= 1:
-            self.is_draw = True
+            self.is_over = self.is_draw = True
             return
 
     def swap_turns(self):
@@ -133,8 +135,17 @@ class GameEngine:
 
 
 class GameAI:
-    def __init__(self, engine: GameEngine):
+    def __init__(self, engine: GameEngine, client: OpenAI):
+        self.system_chat = {"role": "system", "content": 'you must return json containing best move coordinate in tic-tac-toe based on board representation and turn provided. example: {"r": 0, "c": 2}'}
         self.engine = engine
+        self.client = client
+
+    def suggest_move(self, board: str, turn: TileType):
+        messages = [self.system_chat, {"role": "user", "content": f"board: {board}\nturn: {turn.value}"}]
+        resp = self.client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+        resp_content = resp.choices[0].message.content
+        resp_dict = json.loads(resp_content)
+        return int(resp_dict.get("r")), int(resp_dict.get("c"))
 
 
 class GameUI:
@@ -166,18 +177,29 @@ class Game:
         self.engine = engine
         self.ai = ai
         self.ui = ui
+        self.ai_turn = TileType.O
 
     def start(self):
         self.ui.draw()
         while True:
-            try:
-                move_row, move_col = self.ui.pick_tile()
-            except ValueError:
-                print("invalid move")
-                continue
+            ai_move = self.ai_turn == self.engine.turn
+            if ai_move:
+                try:
+                    move_row, move_col = self.ai.suggest_move(board=self.ui.text(), turn=self.engine.turn)
+                except Exception as e:
+                    print(e)
+                    break
+            else:
+                try:
+                    move_row, move_col = self.ui.pick_tile()
+                except:
+                    print("invalid move")
+                    continue
+                if move_row < 0 or move_col < 0:
+                    break
             move = GameMove(row=move_row, col=move_col)
             if not self.engine.is_legal_move(move=move):
-                print("invalid move")
+                print(f"invalid move: r={move.row} c={move.col}")
                 continue
             self.engine.make_move(move=move)
             self.ui.draw()
@@ -191,7 +213,7 @@ class Game:
 
 if __name__ == "__main__":
     engine = GameEngine()
-    ai = GameAI(engine=engine)
+    ai = GameAI(engine=engine, client=OpenAI())
     ui = GameUI(engine=engine)
     game = Game(engine=engine, ai=ai, ui=ui)
     game.start()
