@@ -135,9 +135,8 @@ class GameEngine:
 
 
 class GameAI:
-    def __init__(self, engine: GameEngine, client: OpenAI):
+    def __init__(self, client: OpenAI):
         self.system_chat = {"role": "system", "content": 'you must return json containing best move coordinate in tic-tac-toe based on board representation and turn provided. example: {"r": 0, "c": 2}'}
-        self.engine = engine
         self.client = client
 
     def suggest_move(self, board: str, turn: TileType):
@@ -213,7 +212,7 @@ class Game:
 
 if __name__ == "__main__":
     engine = GameEngine()
-    ai = GameAI(engine=engine, client=OpenAI())
+    ai = GameAI(client=OpenAI())
     ui = GameUI(engine=engine)
     game = Game(engine=engine, ai=ai, ui=ui)
     game.start()
