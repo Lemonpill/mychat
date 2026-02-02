@@ -56,6 +56,20 @@ class GameEngine:
         
         print(tlbr_ray_tiles)
         
+        # scan top right - bottom left ray crossing last move
+        trbl_ray_tiles = []
+        trbl_r = last_move_row
+        trbl_c = last_move_col
+        while trbl_r in range(1, BOARD_SIZE) and trbl_c in range(1, BOARD_SIZE):
+            trbl_r -= 1
+            trbl_c += 1
+        while trbl_r in range(BOARD_SIZE) and trbl_c in range(BOARD_SIZE):
+            trbl_ray_tiles.append(self.board[trbl_r][trbl_c])
+            trbl_r += 1
+            trbl_c -= 1
+        
+        print(trbl_ray_tiles)
+        
         # scan left-right ray crossing last move
         lr_ray_tiles = []
         lr_r = last_move_row
