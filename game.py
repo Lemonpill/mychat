@@ -148,8 +148,8 @@ class GameAI:
 
 
 class GameUI:
-    def __init__(self, engine: GameEngine):
-        self.engine = engine
+    def __init__(self):
+        pass
 
     def dump(self, board: list[list[TileType]]):
         text = "\n"
@@ -157,7 +157,7 @@ class GameUI:
             if r == 0:
                 header = " ".join([str(i) for i in range(BOARD_SIZE)])
                 text += f"  {header}\n"
-            row = " ".join([TILE_ICONS[t] for t in self.engine.board[r]])
+            row = " ".join([TILE_ICONS[t] for t in board[r]])
             text += f"{r} {row}\n"
         return text
 
