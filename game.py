@@ -49,7 +49,6 @@ class GameEngine:
         while tlbr_r in range(1, BOARD_SIZE) and tlbr_c in range(1, BOARD_SIZE):
             tlbr_r -= 1
             tlbr_c -= 1
-            print(f"{tlbr_r} {tlbr_c}")
         while tlbr_r in range(BOARD_SIZE) and tlbr_c in range(BOARD_SIZE):
             tlbr_ray_tiles.append(self.board[tlbr_r][tlbr_c])
             tlbr_r += 1
