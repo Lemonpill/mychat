@@ -14,39 +14,55 @@ class TileType(IntEnum):
     V = 0  # vacant
     O = 2  # circle
     X = 1  # cross
+    
+class GameMove:
+    def __init__(self, row: int, col: int):
+        self.row = row
+        self.col = col
 
 
 class GameEngine:
     def __init__(self):
         self.board = [[TileType.V for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
         self.turn = TileType.X
-        self.last_move: tuple[int, int] = None
+        self.last_move: GameMove | None = None
         self.done = False
 
     def evaluate(self):
-        last_move_row = self.last_move[0]
-        last_move_col = self.last_move[1]
+        last_move_row = self.last_move.row
+        last_move_col = self.last_move.col
 
-        # scan vertical ray from last move
-        vert_ray_tiles = []
-        curr_r = 0
-        curr_c = last_move_col
-        while curr_r in range(BOARD_SIZE) and curr_c in range(BOARD_SIZE):
-            vert_ray_tiles.append(self.board[curr_r][curr_c])
-            curr_r += 1
+        # scan top-down crossing last move
+        td_ray_tiles = []
+        td_r = 0
+        td_c = last_move_col
+        while td_r in range(BOARD_SIZE):
+            td_ray_tiles.append(self.board[td_r][td_c])
+            td_r += 1
 
-        print(vert_ray_tiles)
+        print(td_ray_tiles)
+        
+        lr_ray_tiles = []
+        lr_r = last_move_row
+        lr_c = 0
+        while lr_c in range(BOARD_SIZE):
+            lr_ray_tiles.append(self.board[lr_r][lr_c])
+            lr_c += 1
+        
+        print(lr_ray_tiles)
+        
 
-    def move(self, tile: tuple[int, int]):
-        r = tile[0]
-        c = tile[1]
+    def make_move(self, move: GameMove):
+        r = move.row
+        c = move.col
         if r not in range(BOARD_SIZE) or c not in range(BOARD_SIZE):
             raise TileNotOnBoardError
         if self.board[r][c] != TileType.V:
             raise TileNotVacantError
         self.board[r][c] = self.turn
+        self.last_move = move
+        self.evaluate()
         self.turn = TileType.X if self.turn == TileType.O else TileType.O
-        self.last_move = tile
 
 
 class GameAI:
@@ -78,8 +94,9 @@ class Game:
             row_input = input("r: ")
             if not all([col_input, row_input]):
                 break
+            move = GameMove(row=int(row_input), col=int(col_input))
             try:
-                self.engine.move((int(col_input), int(row_input)))
+                self.engine.make_move(move=move)
             except (TileNotOnBoardError, TileNotVacantError):
                 print("make a valid move")
 
