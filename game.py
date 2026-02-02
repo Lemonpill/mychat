@@ -199,7 +199,10 @@ class Game:
             move = GameMove(row=move_row, col=move_col)
             if not self.engine.is_legal_move(move=move):
                 print(f"invalid move: r={move.row} c={move.col}")
-                continue
+                if ai_move:
+                    break
+                else:
+                    continue
             self.engine.make_move(move=move)
             self.ui.draw(board=self.engine.board)
             if self.engine.is_over and not self.engine.is_draw:
