@@ -141,13 +141,19 @@ class GameUI:
     def __init__(self, engine: GameEngine):
         self.engine = engine
 
-    def draw(self):
+    def text(self):
+        text = "\n"
         for r in range(BOARD_SIZE):
             if r == 0:
                 header = " ".join([str(i) for i in range(BOARD_SIZE)])
-                print(f"  {header}")
+                text += f"  {header}\n"
             row = " ".join([TILE_ICONS[t] for t in self.engine.board[r]])
-            print(f"{r} {row}")
+            text += f"{r} {row}\n"
+        return text
+
+    def draw(self):
+        text = self.text()
+        print(text)
 
     def pick_tile(self):
         row_input = int(input("r: "))
