@@ -151,7 +151,7 @@ class GameUI:
     def __init__(self, engine: GameEngine):
         self.engine = engine
 
-    def text(self):
+    def dump(self, board: list[list[TileType]]):
         text = "\n"
         for r in range(BOARD_SIZE):
             if r == 0:
@@ -161,8 +161,8 @@ class GameUI:
             text += f"{r} {row}\n"
         return text
 
-    def draw(self):
-        text = self.text()
+    def draw(self, board: list[list[TileType]]):
+        text = self.dump(board=board)
         print(text)
 
     def pick_tile(self):
@@ -179,12 +179,12 @@ class Game:
         self.ai_turn = TileType.O
 
     def start(self):
-        self.ui.draw()
+        self.ui.draw(board=self.engine.board)
         while True:
             ai_move = self.ai_turn == self.engine.turn
             if ai_move:
                 try:
-                    move_row, move_col = self.ai.suggest_move(board=self.ui.text(), turn=self.engine.turn)
+                    move_row, move_col = self.ai.suggest_move(board=self.ui.dump(board=self.engine.board), turn=self.engine.turn)
                 except Exception as e:
                     print(e)
                     break
@@ -201,7 +201,7 @@ class Game:
                 print(f"invalid move: r={move.row} c={move.col}")
                 continue
             self.engine.make_move(move=move)
-            self.ui.draw()
+            self.ui.draw(board=self.engine.board)
             if self.engine.is_over and not self.engine.is_draw:
                 print("game over!")
                 break
@@ -213,6 +213,6 @@ class Game:
 if __name__ == "__main__":
     engine = GameEngine()
     ai = GameAI(client=OpenAI())
-    ui = GameUI(engine=engine)
+    ui = GameUI()
     game = Game(engine=engine, ai=ai, ui=ui)
     game.start()
