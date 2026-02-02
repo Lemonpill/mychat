@@ -7,8 +7,12 @@ class TileType(IntEnum):
     O = 2  # circle
 
 
-BOARD_SIZE = 3
-TILE_ICONS = {TileType.V: "-", TileType.X: "X", TileType.O: "O"}
+BOARD_SIZE = 4
+TILE_ICONS = {
+    TileType.V: "□",
+    TileType.X: "⧆",
+    TileType.O: "⧇",
+}
 
 
 class InvalidMoveError(ValueError): ...
@@ -23,10 +27,10 @@ class GameMove:
 class GameEngine:
     def __init__(self):
         self.board = [[TileType.V for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
-        self.turn = TileType.X
         self.last_move: GameMove | None = None
-        self.is_draw = False
-        self.is_win = False
+        self.is_over: bool = False
+        self.is_draw: bool = False
+        self.turn = TileType.X
 
     def evaluate_board(self):
         last_move_row = self.last_move.row
@@ -96,7 +100,7 @@ class GameEngine:
 
         # check if any of the rays are winning
         if any([td_ray_win, tlbr_ray_win, trbl_ray_win, lr_ray_win]):
-            self.is_win = True
+            self.is_over = True
             return
 
         # check if one or less tile is open
@@ -110,10 +114,10 @@ class GameEngine:
             self.is_draw = True
             return
 
-    def swap_turn(self):
+    def swap_turns(self):
         self.turn = TileType.X if self.turn == TileType.O else TileType.O
 
-    def is_valid_move(self, move: GameMove):
+    def is_legal_move(self, move: GameMove):
         if move.row not in range(BOARD_SIZE) or move.col not in range(BOARD_SIZE):
             return False
         if self.board[move.row][move.col] != TileType.V:
@@ -124,9 +128,8 @@ class GameEngine:
         self.board[move.row][move.col] = self.turn
         self.last_move = move
         self.evaluate_board()
-        if self.is_win or self.is_draw:
-            return
-        self.swap_turn()
+        if not self.is_over:
+            self.swap_turns()
 
 
 class GameAI:
@@ -139,9 +142,12 @@ class GameUI:
         self.engine = engine
 
     def draw(self):
-        print(f"  {[str(i) for i in range(BOARD_SIZE)]}")
-        for i, r in enumerate(self.engine.board):
-            print(f"{i} {[TILE_ICONS[t] for t in r]}")
+        for r in range(BOARD_SIZE):
+            if r == 0:
+                header = " ".join([str(i) for i in range(BOARD_SIZE)])
+                print(f"  {header}")
+            row = " ".join([TILE_ICONS[t] for t in self.engine.board[r]])
+            print(f"{r} {row}")
 
     def pick_tile(self):
         row_input = int(input("r: "))
@@ -158,18 +164,22 @@ class Game:
     def start(self):
         self.ui.draw()
         while True:
-            move_row, move_col = self.ui.pick_tile()
+            try:
+                move_row, move_col = self.ui.pick_tile()
+            except ValueError:
+                print("invalid move")
+                continue
             move = GameMove(row=move_row, col=move_col)
-            if not self.engine.is_valid_move(move=move):
+            if not self.engine.is_legal_move(move=move):
                 print("invalid move")
                 continue
             self.engine.make_move(move=move)
             self.ui.draw()
-            if self.engine.is_draw:
-                print("draw!")
+            if self.engine.is_over and not self.engine.is_draw:
+                print("game over!")
                 break
-            if self.engine.is_win:
-                print("win!")
+            elif self.engine.is_draw:
+                print("game draw!")
                 break
 
 
