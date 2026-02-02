@@ -32,7 +32,7 @@ class GameEngine:
         last_move_row = self.last_move.row
         last_move_col = self.last_move.col
 
-        # scan top-down crossing last move
+        # scan top-down ray crossing last move
         td_ray_tiles = []
         td_r = 0
         td_c = last_move_col
@@ -42,6 +42,7 @@ class GameEngine:
 
         print(td_ray_tiles)
         
+        # scan left-right ray crossing last move
         lr_ray_tiles = []
         lr_r = last_move_row
         lr_c = 0
