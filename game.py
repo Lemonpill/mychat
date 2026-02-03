@@ -105,14 +105,13 @@ class GameEngine:
             self.is_over = True
             return
 
-        # check if one or less tile is open
+        # no moves + no win = draw
         vacant_tiles = 0
         for r in self.board:
             for c in r:
                 if c == TileType.V:
                     vacant_tiles += 1
-        # check it?
-        if vacant_tiles <= 1:
+        if not vacant_tiles:
             self.is_over = self.is_draw = True
             return
 
