@@ -141,9 +141,10 @@ class GameAI:
 
     def suggest_move(self, board: str, turn: TileType):
         messages = [self.system_chat, {"role": "user", "content": f"board: {board}\nturn: {turn.value}"}]
-        resp = self.client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
-        resp_content = resp.choices[0].message.content
-        resp_dict = json.loads(resp_content)
+        resp = self.client.chat.completions.create(model="gpt-5", messages=messages)
+        resp_text_raw = resp.choices[0].message.content
+        resp_text = resp_text_raw.replace("```json\n", "").replace("\n```", "")
+        resp_dict = json.loads(resp_text)
         return int(resp_dict.get("r")), int(resp_dict.get("c"))
 
 
