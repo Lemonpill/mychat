@@ -1,4 +1,5 @@
 import json
+import colorama
 from enum import IntEnum
 from openai import OpenAI
 
@@ -151,7 +152,7 @@ class GameUI:
     def __init__(self):
         pass
 
-    def dump(self, board: list[list[TileType]]):
+    def dump_board(self, board: list[list[TileType]]):
         text = "\n"
         for r in range(BOARD_SIZE):
             if r == 0:
@@ -161,11 +162,20 @@ class GameUI:
             text += f"{r} {row}\n"
         return text
 
-    def draw(self, board: list[list[TileType]]):
-        text = self.dump(board=board)
+    def draw_board(self, board: list[list[TileType]]):
+        text = self.dump_board(board=board)
         print(text)
+        print(colorama.Style.RESET_ALL)
 
-    def pick_tile(self):
+    def draw_error(self, text: str):
+        print(colorama.Fore.RED + f"\n{text}\n")
+        print(colorama.Style.RESET_ALL)
+
+    def draw_alert(self, text: str):
+        print(colorama.Fore.YELLOW + f"\n{text}\n")
+        print(colorama.Style.RESET_ALL)
+
+    def move_input(self):
         row_input = int(input("r: "))
         col_input = int(input("c: "))
         return row_input, col_input
@@ -179,37 +189,52 @@ class Game:
         self.ai_turn = TileType.O
 
     def start(self):
-        self.ui.draw(board=self.engine.board)
+        # first draw
+        self.ui.draw_board(board=self.engine.board)
+
+        # main game loop
         while True:
             ai_move = self.ai_turn == self.engine.turn
+
+            # process inputs
             if ai_move:
+                # ai input
                 try:
-                    move_row, move_col = self.ai.suggest_move(board=self.ui.dump(board=self.engine.board), turn=self.engine.turn)
+                    move_row, move_col = self.ai.suggest_move(board=self.ui.dump_board(board=self.engine.board), turn=self.engine.turn)
                 except Exception as e:
-                    print(e)
+                    self.ui.draw_error(f"input error: {e}")
                     break
             else:
+                # human input
                 try:
-                    move_row, move_col = self.ui.pick_tile()
-                except:
-                    print("invalid move")
+                    move_row, move_col = self.ui.move_input()
+                except Exception as e:
+                    self.ui.draw_error(f"input error: {e}")
                     continue
                 if move_row < 0 or move_col < 0:
                     break
+
+            # validate selected coordinates
             move = GameMove(row=move_row, col=move_col)
             if not self.engine.is_legal_move(move=move):
-                print(f"invalid move: r={move.row} c={move.col}")
+                self.ui.draw_error(f"invalid move: r={move.row} c={move.col}")
                 if ai_move:
                     break
                 else:
                     continue
+
+            # update board state
             self.engine.make_move(move=move)
-            self.ui.draw(board=self.engine.board)
+
+            # redraw board state
+            self.ui.draw_board(board=self.engine.board)
+
+            # stop on win / draw
             if self.engine.is_over and not self.engine.is_draw:
-                print("game over!")
+                self.ui.draw_alert("game over")
                 break
             elif self.engine.is_draw:
-                print("game draw!")
+                self.ui.draw_alert("game draw")
                 break
 
 
