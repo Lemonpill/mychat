@@ -11,6 +11,7 @@ class TileType(IntEnum):
 
 
 BOARD_SIZE = 3
+MODEL_NAME = "gpt-5"
 TILE_ICONS = {
     TileType.V: "□",
     TileType.X: "⧆",
@@ -72,7 +73,7 @@ class GameEngine:
         trbl_ray_full = True
         trbl_r = last_move_row
         trbl_c = last_move_col
-        while trbl_r in range(1, BOARD_SIZE) and trbl_c in range(1, BOARD_SIZE):
+        while trbl_r in range(1, BOARD_SIZE) and trbl_c in range(BOARD_SIZE):
             trbl_r -= 1
             trbl_c += 1
         while trbl_r in range(BOARD_SIZE) and trbl_c in range(BOARD_SIZE):
@@ -141,8 +142,10 @@ class GameAI:
 
     def suggest_move(self, board: str, turn: TileType):
         messages = [self.system_chat, {"role": "user", "content": f"board: {board}\nturn: {turn.value}"}]
-        resp = self.client.chat.completions.create(model="gpt-5", messages=messages)
+        resp = self.client.chat.completions.create(model=MODEL_NAME, messages=messages)
         resp_text_raw = resp.choices[0].message.content
+        with open("ai.resp.log", "a") as f:
+            f.write(str(resp.model_dump()) + "\n\n")
         resp_text = resp_text_raw.replace("```json\n", "").replace("\n```", "")
         resp_dict = json.loads(resp_text)
         return int(resp_dict.get("r")), int(resp_dict.get("c"))
@@ -165,7 +168,6 @@ class GameUI:
     def draw_board(self, board: list[list[TileType]]):
         text = self.dump_board(board=board)
         print(text)
-        print(colorama.Style.RESET_ALL)
 
     def draw_error(self, text: str):
         print(colorama.Fore.RED + f"\n{text}\n")
@@ -194,7 +196,7 @@ class Game:
 
         # main game loop
         while True:
-            ai_move = self.ai_turn == self.engine.turn
+            ai_move = False  # ai vs self mode
 
             # process inputs
             if ai_move:
