@@ -56,27 +56,21 @@ PIECE_UI = {
 
 
 class GameMove:
-    def __init__(self, src_row: int, src_col: int, tgt_row: int, tgt_col: int):
+    def __init__(self, src_row: int, src_col: int, tgt_row: int, tgt_col: int, cap_row: int | None = None, cap_col: int | None = None):
         self.src_row = src_row
         self.src_col = src_col
         self.tgt_row = tgt_row
         self.tgt_col = tgt_col
-
-    def __eq__(self, value):
-        src_match = self.src_row == value.src_row and self.src_col == value.src_col
-        tgt_match = self.tgt_row == value.tgt_row and self.tgt_col == value.tgt_col
-        if src_match and tgt_match:
-            return True
-        return False
-
-    def __repr__(self):
-        return f"{self.src_row}-{self.src_col} -> {self.tgt_row}-{self.tgt_col}"
+        self.cap_row = cap_row
+        self.cap_col = cap_col
 
 
 class GameEngine:
     def __init__(self):
         self.board = [[PieceType.BLANK for _ in range(BRD_SIZE)] for _ in range(BRD_SIZE)]
         self.color = Color.WHITE
+        self.enp_r: int | None = None
+        self.enp_c: int | None = None
         self._setup_board()
 
     def _setup_board(self):
@@ -87,11 +81,6 @@ class GameEngine:
 
     def _is_blank(self, row: int, col: int):
         return not self.board[row][col]
-
-    def _is_ally_square(self, row: int, col: int):
-        cond_a = self.color > 0 and self.board[row][col] > 0
-        cond_b = self.color < 0 and self.board[row][col] < 0
-        return any([cond_a, cond_b])
 
     def _is_enemy(self, row: int, col: int):
         cond_a = self.color > 0 and self.board[row][col] < 0
@@ -113,6 +102,9 @@ class GameEngine:
             tgt_blank = self._is_blank(row=tgt_row, col=tgt_col)
             if tgt_blank or tgt_enemy:
                 m = GameMove(src_row=row, src_col=col, tgt_row=tgt_row, tgt_col=tgt_col)
+                if tgt_enemy:
+                    m.cap_row = tgt_row
+                    m.cap_col = tgt_col
                 moves.append(m)
         return moves
 
@@ -122,10 +114,13 @@ class GameEngine:
             nxt_r = row + r_off
             nxt_c = col + c_off
             while self._is_valid(row=nxt_r, col=nxt_c):
-                m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
                 tgt_enemy = self._is_enemy(row=nxt_r, col=nxt_c)
                 tgt_blank = self._is_blank(row=nxt_r, col=nxt_c)
+                m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
                 if tgt_blank or tgt_enemy:
+                    if tgt_enemy:
+                        m.cap_row = nxt_r
+                        m.cap_col = nxt_c
                     moves.append(m)
                 if tgt_enemy or not tgt_blank:
                     break
@@ -151,12 +146,12 @@ class GameEngine:
     def _pawn_moves(self, row: int, col: int):
         moves: list[GameMove] = []
         is_initial = self.color > 0 and row == 1 or self.color < 0 and row == 6
-        jumps = 2 if is_initial else 1
-        jumpn = 1
-        while jumpn <= jumps:
-            d = DIR_S if self.color > 0 else DIR_N
-            nxt_r = row + (d[0] * jumpn)
-            nxt_c = col + (d[1] * jumpn)
+        stp_t = 2 if is_initial else 1
+        stp_dir = DIR_S if self.color > 0 else DIR_N
+        stp_i = 1
+        while stp_i <= stp_t:
+            nxt_r = row + (stp_dir[0] * stp_i)
+            nxt_c = col + (stp_dir[1] * stp_i)
             tgt_valid = self._is_valid(row=nxt_r, col=nxt_c)
             if not tgt_valid:
                 break
@@ -165,7 +160,25 @@ class GameEngine:
                 break
             m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
             moves.append(m)
-            jumpn += 1
+            stp_i += 1
+        atk_dir = [DIR_SW, DIR_SE] if self.color > 0 else [DIR_NW, DIR_NE]
+        for d in atk_dir:
+            atk_r = row + d[0]
+            atk_c = col + d[1]
+            if not self._is_valid(row=atk_r, col=atk_c):
+                continue
+            is_enpsn = atk_r == self.enp_r and atk_c == self.enp_c
+            is_enemy = self._is_enemy(row=atk_r, col=atk_c)
+            if not is_enemy and not is_enpsn:
+                continue
+            m = GameMove(src_row=row, src_col=col, tgt_row=atk_r, tgt_col=atk_c)
+            if is_enemy:
+                m.cap_row = atk_r
+                m.cap_col = atk_c
+            elif is_enpsn:
+                m.cap_row = self.enp_r
+                m.cap_col = self.enp_c
+            moves.append(m)
         return moves
 
     def _pseudo_legal_moves(self) -> list[GameMove]:
@@ -190,6 +203,21 @@ class GameEngine:
                     case PieceType.PAWN:
                         moves += self._pawn_moves(row=r, col=c)
         return moves
+
+    def make_move(self, move: GameMove):
+        src_r, src_c = move.src_row, move.src_col
+        tgt_r, tgt_c = move.tgt_row, move.tgt_col
+        cap_r, cap_c = move.cap_row, move.cap_col
+        move_piece = self.board[src_r][src_c]
+        self.board[src_r][src_c] = PieceType.BLANK
+        if cap_r is not None and cap_c is not None:
+            self.board[cap_r][cap_c] = PieceType.BLANK
+        if abs(move_piece) == PieceType.PAWN and abs(move.src_row - move.tgt_row) == 2:
+            self.enp_r = (move.src_row + move.tgt_row) // 2
+            self.enp_c = move.src_col
+        else:
+            self.enp_r = self.enp_c = None
+        self.color = self.color * -1
 
 
 class GameUI:
@@ -229,7 +257,12 @@ class GameUI:
 if __name__ == "__main__":
     engine = GameEngine()
     ui = GameUI()
-    ui.draw_board(engine.board)
-    for i, m in enumerate(engine._pseudo_legal_moves()):
-        m_txt = ui.move_text(board=engine.board, move=m)
-        print(f"{i}: {m_txt}")
+    while True:
+        ui.draw_board(engine.board)
+        move_lst = engine._pseudo_legal_moves()
+        move_map = {i: m for i, m in enumerate(move_lst)}
+        for i, m in move_map.items():
+            m_txt = ui.move_text(board=engine.board, move=m)
+            print(f"{i}: {m_txt}")
+        inp = ui.user_move()
+        engine.make_move(move_map[inp])
