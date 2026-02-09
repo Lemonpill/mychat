@@ -44,17 +44,21 @@ PIECE_UI = {
 
 
 class GameMove:
-    def __init__(self, row: int, col: int):
-        self.row = row
-        self.col = col
+    def __init__(self, src_row: int, src_col: int, tgt_row: int, tgt_col: int):
+        self.src_row = src_row
+        self.src_col = src_col
+        self.tgt_row = tgt_row
+        self.tgt_col = tgt_col
 
     def __eq__(self, value):
-        if self.row != value.row or self.col != value.col:
-            return False
-        return True
+        src_match = self.src_row == value.src_row and self.src_col == value.src_col
+        tgt_match = self.tgt_row == value.tgt_row and self.tgt_col == value.tgt_col
+        if src_match and tgt_match:
+            return True
+        return False
 
     def __repr__(self):
-        return f"{self.row}-{self.col}"
+        return f"{self.src_row}-{self.src_col} -> {self.tgt_row}-{self.tgt_col}"
 
 
 class GameEngine:
@@ -78,7 +82,7 @@ class GameEngine:
                 continue
             if self.board[nxt_r][nxt_c] > 0 and self.color < 0 or self.board[nxt_r][nxt_c] < 0 and self.color > 0:
                 continue
-            m = GameMove(row=nxt_r, col=nxt_c)
+            m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
             moves.append(m)
         return moves
 
@@ -91,12 +95,12 @@ class GameEngine:
             while nxt_r in range(BRD_SIZE) and nxt_c in range(BRD_SIZE):
                 nxt_p = self.board[nxt_r][nxt_c]
                 if nxt_p > 0 and cur_p < 0 or nxt_p < 0 and cur_p > 0:
-                    m = GameMove(row=nxt_r, col=nxt_c)
+                    m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
                     moves.append(m)
                     break
                 elif nxt_p > 0 and cur_p > 0 or nxt_p < 0 and cur_p < 0:
                     break
-                m = GameMove(row=nxt_r, col=nxt_c)
+                m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
                 moves.append(m)
                 nxt_r += r_off
                 nxt_c += c_off
@@ -136,15 +140,12 @@ class GameUI:
             print(str(r + 1) + " ".join(c_pcs))
 
     def user_move(self):
-        coordinate = input("move: ")
-        row = int(coordinate[1]) - 1
-        col = string.ascii_uppercase.index(coordinate[0])
-        return GameMove(row=row, col=col)
+        return int(input("move: "))
 
 
 if __name__ == "__main__":
     engine = GameEngine()
     ui = GameUI()
     ui.draw_board(engine.board)
-    user_move = ui.user_move()
-    print(engine._valid_moves())
+    for m in engine._valid_moves():
+        print(m)
