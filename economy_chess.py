@@ -71,6 +71,7 @@ class GameEngine:
         self.color = Color.WHITE
         self.enp_r: int | None = None
         self.enp_c: int | None = None
+        self.last_move: GameMove | None = None
         self._setup_board()
 
     def _setup_board(self):
@@ -161,24 +162,18 @@ class GameEngine:
             m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
             moves.append(m)
             stp_i += 1
-        atk_dir = [DIR_SW, DIR_SE] if self.color > 0 else [DIR_NW, DIR_NE]
+        atk_dir: list[tuple[int, int]] = [DIR_SW, DIR_SE] if self.color > 0 else [DIR_NW, DIR_NE]
         for d in atk_dir:
             atk_r = row + d[0]
             atk_c = col + d[1]
             if not self._is_valid(row=atk_r, col=atk_c):
                 continue
-            is_enpsn = atk_r == self.enp_r and atk_c == self.enp_c
             is_enemy = self._is_enemy(row=atk_r, col=atk_c)
-            if not is_enemy and not is_enpsn:
-                continue
-            m = GameMove(src_row=row, src_col=col, tgt_row=atk_r, tgt_col=atk_c)
+            is_enpsn = atk_r == self.enp_r and atk_c == self.enp_c
             if is_enemy:
-                m.cap_row = atk_r
-                m.cap_col = atk_c
+                moves.append(GameMove(src_row=row, src_col=col, tgt_row=atk_r, tgt_col=atk_c, cap_row=atk_r, cap_col=atk_c))
             elif is_enpsn:
-                m.cap_row = self.enp_r
-                m.cap_col = self.enp_c
-            moves.append(m)
+                moves.append(GameMove(src_row=row, src_col=col, tgt_row=self.enp_r, tgt_col=self.enp_c, cap_row=self.last_move.tgt_row, cap_col=self.last_move.tgt_col))
         return moves
 
     def _pseudo_legal_moves(self) -> list[GameMove]:
@@ -208,15 +203,17 @@ class GameEngine:
         src_r, src_c = move.src_row, move.src_col
         tgt_r, tgt_c = move.tgt_row, move.tgt_col
         cap_r, cap_c = move.cap_row, move.cap_col
-        move_piece = self.board[src_r][src_c]
-        self.board[src_r][src_c] = PieceType.BLANK
         if cap_r is not None and cap_c is not None:
             self.board[cap_r][cap_c] = PieceType.BLANK
+        move_piece = self.board[src_r][src_c]
+        self.board[src_r][src_c] = PieceType.BLANK
+        self.board[tgt_r][tgt_c] = move_piece
         if abs(move_piece) == PieceType.PAWN and abs(move.src_row - move.tgt_row) == 2:
             self.enp_r = (move.src_row + move.tgt_row) // 2
             self.enp_c = move.src_col
         else:
             self.enp_r = self.enp_c = None
+        self.last_move = move
         self.color = self.color * -1
 
 
