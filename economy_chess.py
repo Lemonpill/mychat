@@ -98,8 +98,8 @@ class GameEngine:
                     break
                 m = GameMove(row=nxt_r, col=nxt_c)
                 moves.append(m)
-                nxt_r += 1
-                nxt_c += 1
+                nxt_r += r_off
+                nxt_c += c_off
         return moves
 
     def _valid_moves(self) -> list[GameMove]:
