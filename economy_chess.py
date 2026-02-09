@@ -11,8 +11,10 @@ DIR_SW = (1, -1)
 DIR_W = (0, -1)
 DIR_NW = (-1, -1)
 
-DIR_RKFL: list[tuple[int, int]] = [DIR_N, DIR_E, DIR_S, DIR_W]
-DIR_DGNL: list[tuple[int, int]] = [DIR_NE, DIR_SE, DIR_SW, DIR_NW]
+DIRS_KNGT: list[tuple[int, int]] = [(-2, -1), (-2, 1), (-1, 2), (1, 2), (2, 1), (2, -1), (1, -2), (-1, -2)]
+DIRS_RKFL: list[tuple[int, int]] = [DIR_N, DIR_E, DIR_S, DIR_W]
+DIRS_DGNL: list[tuple[int, int]] = [DIR_NE, DIR_SE, DIR_SW, DIR_NW]
+
 BRD_SIZE = 8
 
 
@@ -80,73 +82,113 @@ class GameEngine:
     def _setup_board(self):
         self.board[7] = [-1 * p for p in [PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN, PieceType.KING, PieceType.BISHOP, PieceType.KNIGHT, PieceType.ROOK]]
         self.board[6] = [-1 * PieceType.PAWN for _ in range(BRD_SIZE)]
-        # self.board[1] = [PieceType.PAWN for _ in range(BRD_SIZE)]
+        self.board[1] = [PieceType.PAWN for _ in range(BRD_SIZE)]
         self.board[0] = [p for p in [PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN, PieceType.KING, PieceType.BISHOP, PieceType.KNIGHT, PieceType.ROOK]]
 
-    def _is_blank_square(self, row: int, col: int):
+    def _is_blank(self, row: int, col: int):
         return not self.board[row][col]
 
-    def _is_enemy_square(self, row: int, col: int):
+    def _is_ally_square(self, row: int, col: int):
+        cond_a = self.color > 0 and self.board[row][col] > 0
+        cond_b = self.color < 0 and self.board[row][col] < 0
+        return any([cond_a, cond_b])
+
+    def _is_enemy(self, row: int, col: int):
         cond_a = self.color > 0 and self.board[row][col] < 0
         cond_b = self.color < 0 and self.board[row][col] > 0
         return any([cond_a, cond_b])
 
-    def _is_valid_square(self, row: int, col: int):
+    def _is_valid(self, row: int, col: int):
         return row in range(BRD_SIZE) and col in range(BRD_SIZE)
 
-    def _is_legal_square(self, row: int, col: int):
-        if not self._is_valid_square(row=row, col=col):
-            return False
-        nxt_blank = self._is_blank_square(row=row, col=col)
-        nxt_enemy = self._is_enemy_square(row=row, col=col)
-        return nxt_blank or nxt_enemy
-
-    def _valid_king_moves(self, row: int, col: int):
+    def _step_moves(self, row: int, col: int, dirs: list[tuple[int, int]]):
         moves: list[GameMove] = []
-        for r_off, c_off in DIR_RKFL + DIR_DGNL:
-            nxt_r = row + r_off
-            nxt_c = col + c_off
-            if not self._is_valid_square(row=nxt_r, col=nxt_c):
+        for r_off, c_off in dirs:
+            tgt_row = row + r_off
+            tgt_col = col + c_off
+            tgt_valid = self._is_valid(row=tgt_row, col=tgt_col)
+            if not tgt_valid:
                 continue
-            m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
-            if self._is_blank_square(row=m.tgt_row, col=m.tgt_col):
+            tgt_enemy = self._is_enemy(row=tgt_row, col=tgt_col)
+            tgt_blank = self._is_blank(row=tgt_row, col=tgt_col)
+            if tgt_blank or tgt_enemy:
+                m = GameMove(src_row=row, src_col=col, tgt_row=tgt_row, tgt_col=tgt_col)
                 moves.append(m)
-            else:
-                if self._is_enemy_square(row=m.tgt_row, col=m.tgt_col):
-                    moves.append(m)
-                break
         return moves
 
-    def _valid_queen_moves(self, row: int, col: int):
+    def _slide_moves(self, row: int, col: int, dirs: list[tuple[int, int]]):
         moves: list[GameMove] = []
-        for r_off, c_off in DIR_RKFL + DIR_DGNL:
+        for r_off, c_off in dirs:
             nxt_r = row + r_off
             nxt_c = col + c_off
-            while self._is_valid_square(row=nxt_r, col=nxt_c):
+            while self._is_valid(row=nxt_r, col=nxt_c):
                 m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
-                if self._is_blank_square(row=nxt_r, col=nxt_c):
+                tgt_enemy = self._is_enemy(row=nxt_r, col=nxt_c)
+                tgt_blank = self._is_blank(row=nxt_r, col=nxt_c)
+                if tgt_blank or tgt_enemy:
                     moves.append(m)
-                else:
-                    if self._is_enemy_square(row=nxt_r, col=nxt_c):
-                        moves.append(m)
+                if tgt_enemy or not tgt_blank:
                     break
                 nxt_r += r_off
                 nxt_c += c_off
         return moves
 
-    def _valid_moves(self) -> list[GameMove]:
+    def _king_moves(self, row: int, col: int):
+        return self._step_moves(row=row, col=col, dirs=DIRS_RKFL + DIRS_DGNL)
+
+    def _queen_moves(self, row: int, col: int):
+        return self._slide_moves(row=row, col=col, dirs=DIRS_RKFL + DIRS_DGNL)
+
+    def _rook_moves(self, row: int, col: int):
+        return self._slide_moves(row=row, col=col, dirs=DIRS_RKFL)
+
+    def _bishop_moves(self, row: int, col: int):
+        return self._slide_moves(row=row, col=col, dirs=DIRS_DGNL)
+
+    def _knight_moves(self, row: int, col: int):
+        return self._step_moves(row=row, col=col, dirs=DIRS_KNGT)
+
+    def _pawn_moves(self, row: int, col: int):
+        moves: list[GameMove] = []
+        is_initial = self.color > 0 and row == 1 or self.color < 0 and row == 6
+        jumps = 2 if is_initial else 1
+        jumpn = 1
+        while jumpn <= jumps:
+            d = DIR_S if self.color > 0 else DIR_N
+            nxt_r = row + (d[0] * jumpn)
+            nxt_c = col + (d[1] * jumpn)
+            tgt_valid = self._is_valid(row=nxt_r, col=nxt_c)
+            if not tgt_valid:
+                break
+            tgt_blank = self._is_blank(row=nxt_r, col=nxt_c)
+            if not tgt_blank:
+                break
+            m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
+            moves.append(m)
+            jumpn += 1
+        return moves
+
+    def _pseudo_legal_moves(self) -> list[GameMove]:
         moves = []
         for r in range(BRD_SIZE):
             for c in range(BRD_SIZE):
-                s_enemy = self._is_enemy_square(row=r, col=c)
-                s_blank = self._is_blank_square(row=r, col=c)
-                if not s_blank and s_enemy:
+                s_enemy = self._is_enemy(row=r, col=c)
+                s_blank = self._is_blank(row=r, col=c)
+                if s_blank or s_enemy:
                     continue
                 match abs(self.board[r][c]):
                     case PieceType.KING:
-                        moves += self._valid_king_moves(row=r, col=c)
+                        moves += self._king_moves(row=r, col=c)
                     case PieceType.QUEEN:
-                        moves += self._valid_queen_moves(row=r, col=c)
+                        moves += self._queen_moves(row=r, col=c)
+                    case PieceType.ROOK:
+                        moves += self._rook_moves(row=r, col=c)
+                    case PieceType.BISHOP:
+                        moves += self._bishop_moves(row=r, col=c)
+                    case PieceType.KNIGHT:
+                        moves += self._knight_moves(row=r, col=c)
+                    case PieceType.PAWN:
+                        moves += self._pawn_moves(row=r, col=c)
         return moves
 
 
@@ -171,20 +213,23 @@ class GameUI:
     def user_move(self):
         return int(input("move: "))
 
+    def _move_pos_text(self, board: list[list[PieceType]], row: int, col: int):
+        col_t = string.ascii_uppercase[col]
+        row_t = row + 1
+        sqr = board[row][col]
+        sqr_s = PIECE_UI[sqr] if sqr in PIECE_UI else ""
+        return f"{sqr_s} {col_t}{row_t}"
+
     def move_text(self, board: list[list[PieceType]], move: GameMove):
-        col_t = string.ascii_uppercase[move.tgt_col]
-        row_t = move.tgt_row + 1
-        src_p = board[move.src_row][move.src_col]
-        mov_t = f"{PIECE_UI[src_p]}->{col_t}{row_t}"
-        tgt_p = board[move.tgt_row][move.tgt_col]
-        mov_t += f"x{PIECE_UI[tgt_p]}" if tgt_p in PIECE_UI else ""
-        return mov_t
+        src_txt = self._move_pos_text(board=board, row=move.src_row, col=move.src_col)
+        tgt_txt = self._move_pos_text(board=board, row=move.tgt_row, col=move.tgt_col)
+        return f"{src_txt}>{tgt_txt}"
 
 
 if __name__ == "__main__":
     engine = GameEngine()
     ui = GameUI()
     ui.draw_board(engine.board)
-    for i, m in enumerate(engine._valid_moves()):
+    for i, m in enumerate(engine._pseudo_legal_moves()):
         m_txt = ui.move_text(board=engine.board, move=m)
         print(f"{i}: {m_txt}")
