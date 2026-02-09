@@ -1,9 +1,19 @@
-from enum import IntEnum
+from enum import IntEnum, Enum
 import string
 
 
+DIR_N = (-1, 0)
+DIR_NE = (-1, 1)
+DIR_E = (0, 1)
+DIR_SE = (1, 1)
+DIR_S = (1, 0)
+DIR_SW = (1, -1)
+DIR_W = (0, -1)
+DIR_NW = (-1, -1)
+
+DIR_RKFL: list[tuple[int, int]] = [DIR_N, DIR_E, DIR_S, DIR_W]
+DIR_DGNL: list[tuple[int, int]] = [DIR_NE, DIR_SE, DIR_SW, DIR_NW]
 BRD_SIZE = 8
-DIR_OFFSETS = [(-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1)]
 
 
 class PieceType(IntEnum):
@@ -73,35 +83,53 @@ class GameEngine:
         # self.board[1] = [PieceType.PAWN for _ in range(BRD_SIZE)]
         self.board[0] = [p for p in [PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN, PieceType.KING, PieceType.BISHOP, PieceType.KNIGHT, PieceType.ROOK]]
 
+    def _is_blank_square(self, row: int, col: int):
+        return not self.board[row][col]
+
+    def _is_enemy_square(self, row: int, col: int):
+        cond_a = self.color > 0 and self.board[row][col] < 0
+        cond_b = self.color < 0 and self.board[row][col] > 0
+        return any([cond_a, cond_b])
+
+    def _is_valid_square(self, row: int, col: int):
+        return row in range(BRD_SIZE) and col in range(BRD_SIZE)
+
+    def _is_legal_square(self, row: int, col: int):
+        if not self._is_valid_square(row=row, col=col):
+            return False
+        nxt_blank = self._is_blank_square(row=row, col=col)
+        nxt_enemy = self._is_enemy_square(row=row, col=col)
+        return nxt_blank or nxt_enemy
+
     def _valid_king_moves(self, row: int, col: int):
         moves: list[GameMove] = []
-        for r_off, c_off in DIR_OFFSETS:
+        for r_off, c_off in DIR_RKFL + DIR_DGNL:
             nxt_r = row + r_off
             nxt_c = col + c_off
-            if nxt_r not in range(BRD_SIZE) or nxt_c not in range(BRD_SIZE):
-                continue
-            if self.board[nxt_r][nxt_c] > 0 and self.color < 0 or self.board[nxt_r][nxt_c] < 0 and self.color > 0:
+            if not self._is_valid_square(row=nxt_r, col=nxt_c):
                 continue
             m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
-            moves.append(m)
+            if self._is_blank_square(row=m.tgt_row, col=m.tgt_col):
+                moves.append(m)
+            else:
+                if self._is_enemy_square(row=m.tgt_row, col=m.tgt_col):
+                    moves.append(m)
+                break
         return moves
 
     def _valid_queen_moves(self, row: int, col: int):
-        moves = []
-        cur_p = self.board[row][col]
-        for r_off, c_off in DIR_OFFSETS:
+        moves: list[GameMove] = []
+        for r_off, c_off in DIR_RKFL + DIR_DGNL:
             nxt_r = row + r_off
             nxt_c = col + c_off
-            while nxt_r in range(BRD_SIZE) and nxt_c in range(BRD_SIZE):
-                nxt_p = self.board[nxt_r][nxt_c]
-                if nxt_p > 0 and cur_p < 0 or nxt_p < 0 and cur_p > 0:
-                    m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
-                    moves.append(m)
-                    break
-                elif nxt_p > 0 and cur_p > 0 or nxt_p < 0 and cur_p < 0:
-                    break
+            while self._is_valid_square(row=nxt_r, col=nxt_c):
                 m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
-                moves.append(m)
+                if self._is_blank_square(row=nxt_r, col=nxt_c):
+                    moves.append(m)
+                else:
+                    if self._is_enemy_square(row=nxt_r, col=nxt_c):
+                        moves.append(m)
+                    break
                 nxt_r += r_off
                 nxt_c += c_off
         return moves
@@ -110,10 +138,11 @@ class GameEngine:
         moves = []
         for r in range(BRD_SIZE):
             for c in range(BRD_SIZE):
-                s = self.board[r][c]
-                if self.color > 0 and s < 0 or self.color < 0 and s > 0:
+                s_enemy = self._is_enemy_square(row=r, col=c)
+                s_blank = self._is_blank_square(row=r, col=c)
+                if not s_blank and s_enemy:
                     continue
-                match abs(s):
+                match abs(self.board[r][c]):
                     case PieceType.KING:
                         moves += self._valid_king_moves(row=r, col=c)
                     case PieceType.QUEEN:
@@ -142,10 +171,20 @@ class GameUI:
     def user_move(self):
         return int(input("move: "))
 
+    def move_text(self, board: list[list[PieceType]], move: GameMove):
+        col_t = string.ascii_uppercase[move.tgt_col]
+        row_t = move.tgt_row + 1
+        src_p = board[move.src_row][move.src_col]
+        mov_t = f"{PIECE_UI[src_p]}->{col_t}{row_t}"
+        tgt_p = board[move.tgt_row][move.tgt_col]
+        mov_t += f"x{PIECE_UI[tgt_p]}" if tgt_p in PIECE_UI else ""
+        return mov_t
+
 
 if __name__ == "__main__":
     engine = GameEngine()
     ui = GameUI()
     ui.draw_board(engine.board)
-    for m in engine._valid_moves():
-        print(m)
+    for i, m in enumerate(engine._valid_moves()):
+        m_txt = ui.move_text(board=engine.board, move=m)
+        print(f"{i}: {m_txt}")
