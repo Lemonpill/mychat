@@ -180,12 +180,12 @@ class GameEngine:
             cpt_m = self._is_enemy(row=nxt_r, col=nxt_c)
             if not enp_m and not cpt_m:
                 continue
-            lastm = self.last_move
+            lst_m = self.last_move
             if enp_m:
                 tgt_r = self.enp_r
                 tgt_c = self.enp_c
-                cap_r = lastm.tgt_row
-                cap_c = lastm.tgt_col
+                cap_r = lst_m.tgt_row
+                cap_c = lst_m.tgt_col
             else:
                 tgt_r = cap_r = nxt_r
                 tgt_c = cap_c = nxt_c
@@ -207,7 +207,7 @@ class GameEngine:
         return moves
 
     def _pseudo_legal_moves(self) -> list[GameMove]:
-        moves = []
+        moves: list[GameMove] = []
         for r in range(BRD_SIZE):
             for c in range(BRD_SIZE):
                 s_enemy = self._is_enemy(row=r, col=c)
@@ -243,14 +243,14 @@ class GameEngine:
         cap_r, cap_c = move.cap_row, move.cap_col
         if cap_r is not None and cap_c is not None:
             self.board[cap_r][cap_c] = PieceType.BLANK
-        move_piece = self.board[src_r][src_c]
-        self.board[tgt_r][tgt_c] = move_piece
-        self.board[src_r][src_c] = PieceType.BLANK
         if self._is_pawn_jump(move):
             self.enp_r = (move.src_row + move.tgt_row) // 2
             self.enp_c = move.src_col
         else:
             self.enp_r = self.enp_c = None
+        move_piece = self.board[src_r][src_c]
+        self.board[tgt_r][tgt_c] = move_piece
+        self.board[src_r][src_c] = PieceType.BLANK
         self.color *= -1
         self.last_move = move
 
@@ -273,20 +273,23 @@ class GameUI:
                     c_pcs.append(SQUARE_UI[p_sgn])
             print(str(r + 1) + " ".join(c_pcs))
 
-    def user_move(self):
-        return int(input("move: "))
-
-    def _move_pos_text(self, board: list[list[PieceType]], row: int, col: int):
+    def _pos_to_text(self, row: int, col: int):
         col_t = string.ascii_uppercase[col]
         row_t = row + 1
-        sqr = board[row][col]
-        sqr_s = PIECE_UI[sqr] if sqr in PIECE_UI else ""
-        return f"{sqr_s} {col_t}{row_t}"
+        return f"{col_t}{str(row_t)}"
 
     def move_text(self, board: list[list[PieceType]], move: GameMove):
-        src_txt = self._move_pos_text(board=board, row=move.src_row, col=move.src_col)
-        tgt_txt = self._move_pos_text(board=board, row=move.tgt_row, col=move.tgt_col)
-        return f"{src_txt}>{tgt_txt}"
+        src_p = board[move.src_row][move.src_col]
+        src_p_sym = PIECE_UI[src_p]
+        src_t = self._pos_to_text(row=move.src_row, col=move.src_col)
+        is_cpt = move.cap_row is not None and move.cap_col is not None
+        cpt_p = board[move.cap_row][move.cap_col] if is_cpt else None
+        cpt_p_sym = PIECE_UI[cpt_p] if cpt_p is not None else ""
+        tgt_t = self._pos_to_text(row=move.tgt_row, col=move.tgt_col)
+        return f"{src_t}{src_p_sym} > {tgt_t}{cpt_p_sym}"
+
+    def user_move(self):
+        return input("move: ")
 
 
 if __name__ == "__main__":
