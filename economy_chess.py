@@ -1,4 +1,4 @@
-from enum import IntEnum, Enum
+from enum import IntEnum
 import string
 
 
@@ -144,36 +144,66 @@ class GameEngine:
     def _knight_moves(self, row: int, col: int):
         return self._step_moves(row=row, col=col, dirs=DIRS_KNGT)
 
+    def _pawn_jumps(self, row: int, col: int):
+        moves: list[GameMove] = []
+        is_first = self.color == Color.WHITE and row == 1 or self.color == Color.BLACK and row == 6
+        step_dir = DIR_S if self.color == Color.WHITE else DIR_N
+        step_tot = 2 if is_first else 1
+        step_ind = 1
+        while step_ind <= step_tot:
+            nxt_r = row + (step_dir[0] * step_ind)
+            nxt_c = col + (step_dir[1] * step_ind)
+            if not self._is_valid(row=nxt_r, col=nxt_c):
+                break
+            if not self._is_blank(row=nxt_r, col=nxt_c):
+                break
+            moves.append(
+                GameMove(
+                    src_row=row,
+                    src_col=col,
+                    tgt_row=nxt_r,
+                    tgt_col=nxt_c,
+                )
+            )
+            step_ind += 1
+        return moves
+
+    def _pawn_capts(self, row: int, col: int):
+        moves: list[GameMove] = []
+        dirs = [DIR_SW, DIR_SE] if self.color == Color.WHITE else [DIR_NW, DIR_NE]
+        for r_off, c_off in dirs:
+            nxt_r = row + r_off
+            nxt_c = col + c_off
+            if not self._is_valid(row=nxt_r, col=nxt_c):
+                continue
+            enp_m = nxt_r == self.enp_r and nxt_c == self.enp_c
+            cpt_m = self._is_enemy(row=nxt_r, col=nxt_c)
+            if not enp_m and not cpt_m:
+                continue
+            lastm = self.last_move
+            if enp_m:
+                tgt_r = self.enp_r
+                tgt_c = self.enp_c
+                cap_r = lastm.tgt_row
+                cap_c = lastm.tgt_col
+            else:
+                tgt_r = cap_r = nxt_r
+                tgt_c = cap_c = nxt_c
+            move = GameMove(
+                src_row=row,
+                src_col=col,
+                tgt_row=tgt_r,
+                tgt_col=tgt_c,
+                cap_row=cap_r,
+                cap_col=cap_c,
+            )
+            moves.append(move)
+        return moves
+
     def _pawn_moves(self, row: int, col: int):
         moves: list[GameMove] = []
-        is_initial = self.color > 0 and row == 1 or self.color < 0 and row == 6
-        stp_t = 2 if is_initial else 1
-        stp_dir = DIR_S if self.color > 0 else DIR_N
-        stp_i = 1
-        while stp_i <= stp_t:
-            nxt_r = row + (stp_dir[0] * stp_i)
-            nxt_c = col + (stp_dir[1] * stp_i)
-            tgt_valid = self._is_valid(row=nxt_r, col=nxt_c)
-            if not tgt_valid:
-                break
-            tgt_blank = self._is_blank(row=nxt_r, col=nxt_c)
-            if not tgt_blank:
-                break
-            m = GameMove(src_row=row, src_col=col, tgt_row=nxt_r, tgt_col=nxt_c)
-            moves.append(m)
-            stp_i += 1
-        atk_dir: list[tuple[int, int]] = [DIR_SW, DIR_SE] if self.color > 0 else [DIR_NW, DIR_NE]
-        for d in atk_dir:
-            atk_r = row + d[0]
-            atk_c = col + d[1]
-            if not self._is_valid(row=atk_r, col=atk_c):
-                continue
-            is_enemy = self._is_enemy(row=atk_r, col=atk_c)
-            is_enpsn = atk_r == self.enp_r and atk_c == self.enp_c
-            if is_enemy:
-                moves.append(GameMove(src_row=row, src_col=col, tgt_row=atk_r, tgt_col=atk_c, cap_row=atk_r, cap_col=atk_c))
-            elif is_enpsn:
-                moves.append(GameMove(src_row=row, src_col=col, tgt_row=self.enp_r, tgt_col=self.enp_c, cap_row=self.last_move.tgt_row, cap_col=self.last_move.tgt_col))
+        moves += self._pawn_jumps(row=row, col=col)
+        moves += self._pawn_capts(row=row, col=col)
         return moves
 
     def _pseudo_legal_moves(self) -> list[GameMove]:
@@ -199,6 +229,14 @@ class GameEngine:
                         moves += self._pawn_moves(row=r, col=c)
         return moves
 
+    def _is_pawn_jump(self, move: GameMove):
+        piece = self.board[move.src_row][move.src_col]
+        is_pawn = abs(piece) == PieceType.PAWN
+        is_jump = abs(move.src_row - move.tgt_row) == 2
+        if is_pawn and is_jump:
+            return True
+        return False
+
     def make_move(self, move: GameMove):
         src_r, src_c = move.src_row, move.src_col
         tgt_r, tgt_c = move.tgt_row, move.tgt_col
@@ -206,15 +244,15 @@ class GameEngine:
         if cap_r is not None and cap_c is not None:
             self.board[cap_r][cap_c] = PieceType.BLANK
         move_piece = self.board[src_r][src_c]
-        self.board[src_r][src_c] = PieceType.BLANK
         self.board[tgt_r][tgt_c] = move_piece
-        if abs(move_piece) == PieceType.PAWN and abs(move.src_row - move.tgt_row) == 2:
+        self.board[src_r][src_c] = PieceType.BLANK
+        if self._is_pawn_jump(move):
             self.enp_r = (move.src_row + move.tgt_row) // 2
             self.enp_c = move.src_col
         else:
             self.enp_r = self.enp_c = None
+        self.color *= -1
         self.last_move = move
-        self.color = self.color * -1
 
 
 class GameUI:
