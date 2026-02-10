@@ -55,6 +55,15 @@ PIECE_UI = {
 }
 
 
+def get_standard_board():
+    board = [[PieceType.BLANK for _ in range(BRD_SIZE)] for _ in range(BRD_SIZE)]
+    board[7] = [-1 * p for p in [PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN, PieceType.KING, PieceType.BISHOP, PieceType.KNIGHT, PieceType.ROOK]]
+    board[6] = [-1 * PieceType.PAWN for _ in range(BRD_SIZE)]
+    board[1] = [PieceType.PAWN for _ in range(BRD_SIZE)]
+    board[0] = [p for p in [PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN, PieceType.KING, PieceType.BISHOP, PieceType.KNIGHT, PieceType.ROOK]]
+    return board
+
+
 class GameMove:
     def __init__(self, src_row: int, src_col: int, tgt_row: int, tgt_col: int, cap_row: int | None = None, cap_col: int | None = None):
         self.src_row = src_row
@@ -65,27 +74,32 @@ class GameMove:
         self.cap_col = cap_col
 
 
-class GameEngine:
-    def __init__(self):
-        self.board = [[PieceType.BLANK for _ in range(BRD_SIZE)] for _ in range(BRD_SIZE)]
-        self.color = Color.WHITE
-        self.enp_r: int | None = None
-        self.enp_c: int | None = None
-        self.last_move: GameMove | None = None
-        self._setup_board()
+class GameState:
+    def __init__(
+        self,
+        board: list[list[PieceType]],
+        color: Color,
+        enp_r: int | None = None,
+        enp_c: int | None = None,
+        lmove: GameMove | None = None,
+    ):
+        self.board = board
+        self.color = color
+        self.enp_r = enp_r
+        self.enp_c = enp_c
+        self.lmove = lmove
 
-    def _setup_board(self):
-        self.board[7] = [-1 * p for p in [PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN, PieceType.KING, PieceType.BISHOP, PieceType.KNIGHT, PieceType.ROOK]]
-        self.board[6] = [-1 * PieceType.PAWN for _ in range(BRD_SIZE)]
-        self.board[1] = [PieceType.PAWN for _ in range(BRD_SIZE)]
-        self.board[0] = [p for p in [PieceType.ROOK, PieceType.KNIGHT, PieceType.BISHOP, PieceType.QUEEN, PieceType.KING, PieceType.BISHOP, PieceType.KNIGHT, PieceType.ROOK]]
+
+class GameEngine:
+    def __init__(self, state: GameState):
+        self.state = state
 
     def _is_blank(self, row: int, col: int):
-        return not self.board[row][col]
+        return not self.state.board[row][col]
 
     def _is_enemy(self, row: int, col: int):
-        cond_a = self.color > 0 and self.board[row][col] < 0
-        cond_b = self.color < 0 and self.board[row][col] > 0
+        cond_a = self.state.color > 0 and self.state.board[row][col] < 0
+        cond_b = self.state.color < 0 and self.state.board[row][col] > 0
         return any([cond_a, cond_b])
 
     def _is_valid(self, row: int, col: int):
@@ -146,8 +160,8 @@ class GameEngine:
 
     def _pawn_jumps(self, row: int, col: int):
         moves: list[GameMove] = []
-        is_first = self.color == Color.WHITE and row == 1 or self.color == Color.BLACK and row == 6
-        step_dir = DIR_S if self.color == Color.WHITE else DIR_N
+        is_first = self.state.color == Color.WHITE and row == 1 or self.state.color == Color.BLACK and row == 6
+        step_dir = DIR_S if self.state.color == Color.WHITE else DIR_N
         step_tot = 2 if is_first else 1
         step_ind = 1
         while step_ind <= step_tot:
@@ -170,20 +184,20 @@ class GameEngine:
 
     def _pawn_capts(self, row: int, col: int):
         moves: list[GameMove] = []
-        dirs = [DIR_SW, DIR_SE] if self.color == Color.WHITE else [DIR_NW, DIR_NE]
+        dirs = [DIR_SW, DIR_SE] if self.state.color == Color.WHITE else [DIR_NW, DIR_NE]
         for r_off, c_off in dirs:
             nxt_r = row + r_off
             nxt_c = col + c_off
             if not self._is_valid(row=nxt_r, col=nxt_c):
                 continue
-            enp_m = nxt_r == self.enp_r and nxt_c == self.enp_c
+            enp_m = nxt_r == self.state.enp_r and nxt_c == self.state.enp_c
             cpt_m = self._is_enemy(row=nxt_r, col=nxt_c)
             if not enp_m and not cpt_m:
                 continue
-            lst_m = self.last_move
+            lst_m = self.state.last_move
             if enp_m:
-                tgt_r = self.enp_r
-                tgt_c = self.enp_c
+                tgt_r = self.state.enp_r
+                tgt_c = self.state.enp_c
                 cap_r = lst_m.tgt_row
                 cap_c = lst_m.tgt_col
             else:
@@ -214,7 +228,7 @@ class GameEngine:
                 s_blank = self._is_blank(row=r, col=c)
                 if s_blank or s_enemy:
                     continue
-                match abs(self.board[r][c]):
+                match abs(self.state.board[r][c]):
                     case PieceType.KING:
                         moves += self._king_moves(row=r, col=c)
                     case PieceType.QUEEN:
@@ -230,7 +244,7 @@ class GameEngine:
         return moves
 
     def _is_pawn_jump(self, move: GameMove):
-        piece = self.board[move.src_row][move.src_col]
+        piece = self.state.board[move.src_row][move.src_col]
         is_pawn = abs(piece) == PieceType.PAWN
         is_jump = abs(move.src_row - move.tgt_row) == 2
         if is_pawn and is_jump:
@@ -242,17 +256,17 @@ class GameEngine:
         tgt_r, tgt_c = move.tgt_row, move.tgt_col
         cap_r, cap_c = move.cap_row, move.cap_col
         if cap_r is not None and cap_c is not None:
-            self.board[cap_r][cap_c] = PieceType.BLANK
+            self.state.board[cap_r][cap_c] = PieceType.BLANK
         if self._is_pawn_jump(move):
-            self.enp_r = (move.src_row + move.tgt_row) // 2
-            self.enp_c = move.src_col
+            self.state.enp_r = (move.src_row + move.tgt_row) // 2
+            self.state.enp_c = move.src_col
         else:
-            self.enp_r = self.enp_c = None
-        move_piece = self.board[src_r][src_c]
-        self.board[tgt_r][tgt_c] = move_piece
-        self.board[src_r][src_c] = PieceType.BLANK
-        self.color *= -1
-        self.last_move = move
+            self.state.enp_r = self.state.enp_c = None
+        move_piece = self.state.board[src_r][src_c]
+        self.state.board[tgt_r][tgt_c] = move_piece
+        self.state.board[src_r][src_c] = PieceType.BLANK
+        self.state.color *= -1
+        self.state.last_move = move
 
 
 class GameUI:
@@ -289,18 +303,19 @@ class GameUI:
         return f"{src_t}{src_p_sym} > {tgt_t}{cpt_p_sym}"
 
     def user_move(self):
-        return input("move: ")
+        return int(input("move: "))
 
 
 if __name__ == "__main__":
-    engine = GameEngine()
+    state = GameState(board=get_standard_board(), color=Color.WHITE)
+    engine = GameEngine(state=state)
     ui = GameUI()
     while True:
-        ui.draw_board(engine.board)
+        ui.draw_board(engine.state.board)
         move_lst = engine._pseudo_legal_moves()
         move_map = {i: m for i, m in enumerate(move_lst)}
         for i, m in move_map.items():
-            m_txt = ui.move_text(board=engine.board, move=m)
+            m_txt = ui.move_text(board=engine.state.board, move=m)
             print(f"{i}: {m_txt}")
         inp = ui.user_move()
         engine.make_move(move_map[inp])
